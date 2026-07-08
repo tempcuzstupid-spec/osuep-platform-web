@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { api, ApiException } from '@/lib/api';
 
 type ProductDetail = {
   product: {
@@ -28,19 +27,16 @@ async function fetchProduct(sku: string): Promise<ProductDetail | null> {
   const host = headersList.get('host') ?? 'osuep-web.onrender.com';
   const proto = headersList.get('x-forwarded-proto') ?? 'https';
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? `http://${host.replace('web', 'api')}`;
-
   try {
-    return await api<ProductDetail>(
-      `${apiBase}/api/catalog/products/${sku}`,
-      {
-        headers: {
-          origin: `${proto}://${host}`,
-        },
-      },
-    );
-  } catch (e) {
-    if (e instanceof ApiException && e.status === 404) return null;
-    throw e;
+    const res = await fetch(`${apiBase}/api/catalog/products/${encodeURIComponent(sku)}`, {
+      cache: 'no-store',
+      headers: { origin: `${proto}://${host}` },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    return (await res.json()) as ProductDetail;
+  } catch {
+    return null;
   }
 }
 
@@ -153,7 +149,7 @@ export default async function ProductDetailPage({ params }: Props) {
                 Setup {product.customizationConfig.turnaroundDays ?? 7} days after artwork approval.
               </p>
               <Link
-                href={`/portal/new-order?sku=${product.sku}`}
+                href={{ pathname: '/portal/new-order', query: { sku: product.sku } } as any}
                 className="mt-4 inline-block btn-primary"
               >
                 Request a quote
